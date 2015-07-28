@@ -18,10 +18,11 @@ gulp.task('vet', function() {
 
 gulp.task('styles', ['clean-styles'], function() {
     log('Compiling Less --> CSS');
-    
+
     return gulp
         .src(config.less)
-        // plumber is a nice plug-in to handle errors in our stream. it does something similar to the errorLogger created below. 
+        // plumber is a nice plug-in to handle errors in our stream.
+        // it does something similar to the errorLogger created below.
         // errorLogger actually terminates the stream, whereas plumber doesn't, but does display error information
         .pipe($.plumber())
         .pipe($.less())
@@ -30,8 +31,8 @@ gulp.task('styles', ['clean-styles'], function() {
         .pipe(gulp.dest(config.temp));
 });
 
-/* 
- * while below can be used as a precursor to other task, no stream is being returned, 
+/*
+ * while below can be used as a precursor to other task, no stream is being returned,
  * task depending on this won't neccessarily wait until this task completes before running
  * therefor need to update to similar function below that takes a callback function
  * i.e. in clean below would need to ensure the callback function 'done' gets called after
@@ -49,6 +50,31 @@ gulp.task('clean-styles', function(done) {
 
 gulp.task('less-watcher', function() {
     gulp.watch([config.less], ['styles']);
+});
+
+gulp.task('wiredep', function() {
+    log('Wire up the bower css, js and our app.js into the html');
+
+    var options = config.getWiredepDefaultOptions();
+    var wiredep = require('wiredep').stream;
+
+    return gulp
+        .src(config.index) // get index.html
+        .pipe(wiredep(options)) // call wiredep, looks in bower.json at runtime dependencies('dependencies' --> not dev)
+                                // looks in bower_components/<directory>
+                                // main property and it's dependencies for each component
+                                // and then injects all of them into the index.html
+        .pipe($.inject(gulp.src(config.js)))
+        .pipe(gulp.dest(config.client));
+});
+
+gulp.task('inject', ['wiredep', 'styles'], function() {
+    log('Wire up the bower css, js and our app.js into the html');
+
+    return gulp
+        .src(config.index) // get index.html
+        .pipe($.inject(gulp.src(config.css)))
+        .pipe(gulp.dest(config.client));
 });
 
 //////////////////////////////////////////////////////////////////
