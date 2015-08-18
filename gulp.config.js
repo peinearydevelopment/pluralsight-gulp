@@ -10,8 +10,11 @@ module.exports = function() {
             './src/**/*.js',
             './*.js'
         ],
+        build: './build/', // needs to correspond to express.static folder setup in src/server/app.js
         client: client,
         css: [temp + 'styles.css'],
+        fonts: './bower_components/font-awesome/fonts/**/*.*',
+        images: client + 'images/**/*.*',
         index: client + 'index.html',
         js: [
             clientApp + '**/*.module.js',
