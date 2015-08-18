@@ -97,6 +97,10 @@ gulp.task('serve-dev', ['inject'], function() {
         .on('restart', /*['vet'], can list tasks in here to run on events*/ function(event) {
             log('*** nodemon restarted');
             log('files changed on restart:\n' + event);
+            setTimeout(function() {
+                browserSync.notify('reloading now ...');
+                browserSync.reload({stream: false});
+            }, config.browserReloadDelay);
         })
         .on('start', function() {
             log('*** nodemon started');
@@ -117,7 +121,7 @@ function changeEvent(event) {
 }
 
 function startBrowserSync() {
-    if(browserSync.active) {
+    if(args.nosync || browserSync.active) {
         return;
     }
     
@@ -150,6 +154,7 @@ function startBrowserSync() {
     
     browserSync(options);
 }
+
 // function errorLogger(error) {
 //     log('*** Start of Error ***');
 //     log(error);

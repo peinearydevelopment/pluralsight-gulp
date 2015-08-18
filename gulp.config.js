@@ -22,6 +22,9 @@ module.exports = function() {
         server: server,
         temp: temp,
 
+        /*Browser sync settings*/
+        browserReloadDelay: 1000, //ms
+
         /*Bower locations*/
         bower: {
             json: require('./bower.json'),
