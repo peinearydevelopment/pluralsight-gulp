@@ -5,7 +5,8 @@
         .module('app.dashboard')
         .controller('Dashboard', Dashboard);
 
-    Dashboard.$inject = ['$state', 'dataservice', 'logger'];
+    /* Injected automatically with gulp-ng-annotate task. Should put it in manually, but task would catch any misses. */
+    //Dashboard.$inject = ['$state', 'dataservice', 'logger']; 
     function Dashboard($state, dataservice, logger) {
         var vm = this;
         vm.customers = [];

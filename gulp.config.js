@@ -27,6 +27,12 @@ module.exports = function() {
         server: server,
         temp: temp,
 
+        /*Optimized file paths */
+        optimized: {
+            app: 'app.js',
+            lib: 'lib.js'
+        },
+
         /*ANGULAR SPECIFIC*/
         /*Template cache*/
         templateCache: {
