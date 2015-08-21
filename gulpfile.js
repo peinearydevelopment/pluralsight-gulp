@@ -1,9 +1,11 @@
+var _ = require('lodash');
 var $ = require('gulp-load-plugins')({lazy: true});
 var args = require('yargs').argv;
 var browserSync = require('browser-sync');
 var config = require('./gulp.config')();
 var del = require('del');
 var gulp = require('gulp');
+var path = require('path');
 var port = process.env.PORT || config.defaultPort;
 
 gulp.task('help', $.taskListing);
@@ -45,12 +47,12 @@ gulp.task('fonts', ['clean-fonts'], function() {
 });
 
 gulp.task('images', ['clean-images'], function() {
-        log('Copying and compressing the images');
+    log('Copying and compressing the images');
 
     return gulp.src(config.images)
         .pipe($.imagemin({optimizationLevel: 4}))
         .pipe(gulp.dest(config.build + 'images'));
-})
+});
 
 /*
  * while below can be used as a precursor to other task, no stream is being returned,
@@ -68,7 +70,7 @@ gulp.task('clean', function(done) {
     var delconfig = [].concate(config.build, config.temp);
     log('Cleaning: ' + $.util.colors.green(delconfig));
     del(delconfig, done);
-})
+});
 
 gulp.task('clean-fonts', function(done) {
     clean(config.build + 'fonts/**/*.*', done);
@@ -88,7 +90,7 @@ gulp.task('clean-code', function(done) {
         config.build + '**/*.html',
         config.build + 'js/**/*.js'
     );
-    
+
     clean(files, done);
 });
 
@@ -99,7 +101,7 @@ gulp.task('less-watcher', function() {
 //SPECIFIC TO ANGULAR
 gulp.task('templatecache', ['clean-code'], function() {
     log('Creating AngularJS $templateCache');
-    
+
     return gulp.src(config.htmltemplates)
         .pipe($.minifyHtml({empty: true}))
         .pipe($.angularTemplatecache(
@@ -107,7 +109,7 @@ gulp.task('templatecache', ['clean-code'], function() {
             config.templateCache.options
         ))
         .pipe(gulp.dest(config.temp));
-})
+});
 
 gulp.task('wiredep', function() {
     log('Wire up the bower css, js and our app.js into the html');
@@ -134,40 +136,58 @@ gulp.task('inject', ['wiredep', 'styles', 'templatecache'], function() {
         .pipe(gulp.dest(config.client));
 });
 
-gulp.task('optimize', ['inject', 'fonts', 'images'], function() {
+gulp.task('build', ['optimize', 'images', 'fonts'], function() {
+    log('Building everything');
+
+    var msg = {
+        title: 'gulp build',
+        subtitle: 'Deployed to the build folder.',
+        message: 'Running `gulp serve-build`.'
+    };
+
+    del(config.temp);
+    log(msg);
+    notify(msg);
+});
+
+gulp.task('optimize', ['inject', 'test'], function() {
     log('Optimizing the javascript, css, html');
 
     var assets = $.useref.assets({searchPath: './'});
     var templateCache = config.temp + config.templateCache.file;
-    var cssFilter = $.filter('**/*.css');
-    var jsLibFilter = $.filter('**/' + config.optimized.lib);
-    var jsAppFilter = $.filter('**/' + config.optimized.app);
+    var cssFilter = $.filter('**/*.css', {restore: true});
+    var jsLibFilter = $.filter('**/' + config.optimized.lib, {restore: true});
+    var jsAppFilter = $.filter('**/' + config.optimized.app, {restore: true});
 
     return gulp.src(config.index)
         .pipe($.plumber())
-        .pipe($.inject(gulp.src(templateCache, {read: false}), { starttag: '<!-- inject:templates:js -->'}))
+        .pipe($.inject(
+            gulp.src(templateCache, {read: false}), {
+            starttag: '<!-- inject:templates:js -->'
+        }))
         .pipe(assets)
         .pipe(cssFilter) // filter to css
         .pipe($.csso()) // csso
-        .pipe(cssFilter.restore()) // remove css filter
+        .pipe(cssFilter.restore) // remove css filter
+
         .pipe(jsLibFilter) // filter to lib js
         .pipe($.uglify()) // uglify
-        .pipe(jsLibFilter.restore()) // remove js filter
-        
+        .pipe(jsLibFilter.restore) // remove js filter
+
         //ANGULAR specific
         .pipe(jsAppFilter) // filter to app js (custom angular js files)
-        .pipe($.ngAnnotate()) 
+        .pipe($.ngAnnotate())
         .pipe($.uglify()) // uglify
-        .pipe(jsAppFilter.restore()) // remove js filter
+        .pipe(jsAppFilter.restore) // remove js filter
 
         .pipe($.rev()) // adds hash to js/css file names if contents have changed
         .pipe(assets.restore())
         .pipe($.useref())
         .pipe($.revReplace()) // replaces references to js/css file names in files with hash appended names
-        .pipe(gulp.det(config.build))
+        .pipe(gulp.dest(config.build))
         .pipe($.rev.manifest())
         .pipe(gulp.dest(config.build));
-})
+});
 
 /*
  * Bump the version
@@ -200,15 +220,58 @@ gulp.task('bump', function() {
 });
 
 // SPECIFIC TO NODE: detects changes to files on server and can perform actions on events
-gulp.task('serve-build', ['optimize'], function() {
-    serve(false);
+gulp.task('serve-build', ['build'], function() {
+    serve(false /* isDev */);
 });
 
 gulp.task('serve-dev', ['inject'], function() {
-    serve(true);
+    serve(true /* isDev */);
+});
+
+gulp.task('test', ['vet', 'templatecache'], function(done) {
+    startTests(true /* singleRun */, done);
+});
+
+gulp.task('autotest', ['vet', 'templatecache'], function(done) {
+    startTests(false /* singleRun */, done);
 });
 
 //////////////////////////////////////////////////////////////////
+function notify(options) {
+    var notifier = require('node-notifier');
+    var notifyOptions = {
+        sound: 'Bottle',
+        contentImage: path.join(__dirname, 'gulp.png'),
+        icon: path.join(__dirname, 'gulp.png')
+    };
+
+    _.assign(notifyOptions, options);
+    notifier.notify(notifyOptions);
+}
+
+function startTests(singleRun, done) {
+    var karma = require('karma').server;
+    var excludeFiles = [];
+    var serverSpecs = config.serverIntegrationSpecs;
+    excludeFiles = serverSpecs;
+    var options = {
+        configFile: __dirname + '/karma.conf.js',
+        exclude: excludeFiles,
+        singleRun: !!singleRun // !! is a js trick to force singleRun value to a boolean
+    };
+
+    karma.start(options, karmaCompleted);
+
+    function karmaCompleted(karmaResult) {
+        log('Karma completed!');
+        if (karmaResult === 1) {
+            done('karma: tests failed with code ' + karmaResult);
+        } else {
+            done();
+        }
+    }
+}
+
 function serve(isDev) {
     var nodeOptions = {
         script: config.nodeServer,
@@ -219,7 +282,7 @@ function serve(isDev) {
         },
         watch: [config.server]
     };
-    
+
     return $.nodemon(nodeOptions)
         .on('restart', /*['vet'], can list tasks in here to run on events*/ function(event) {
             log('*** nodemon restarted');
