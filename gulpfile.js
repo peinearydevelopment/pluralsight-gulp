@@ -67,7 +67,7 @@ gulp.task('images', ['clean-images'], function() {
 // });
 
 gulp.task('clean', function(done) {
-    var delconfig = [].concate(config.build, config.temp);
+    var delconfig = [].concat(config.build, config.temp);
     log('Cleaning: ' + $.util.colors.green(delconfig));
     del(delconfig, done);
 });
@@ -148,6 +148,35 @@ gulp.task('build', ['optimize', 'images', 'fonts'], function() {
     del(config.temp);
     log(msg);
     notify(msg);
+});
+
+gulp.task('serve-specs', ['build-specs'], function(done) {
+    log('run the spec runner');
+    serve(true /* isDev */, true /* isSpecRunner */);
+    done();
+})
+
+gulp.task('build-specs', ['templatecache'], function() {
+    log('building the spec runner');
+
+    var wiredep = require('wiredep').stream;
+    var options = config.getWiredepDefaultOptions();
+    var specs = config.specs;
+
+    options.devDependencies = true;
+
+    if (args.startServers) {
+        specs = [].concat(specs, config.serverIntegrationSpecs);
+    }
+
+    return gulp.src(config.specRunner)
+        .pipe(wiredep(options))
+        .pipe($.inject(gulp.src(config.testlibraries), {name:'inject:testlibraries', read: false}))
+        .pipe($.inject(gulp.src(config.js)))
+        .pipe($.inject(gulp.src(config.specHelpers), {name:'inject:spechelpers', read: false}))
+        .pipe($.inject(gulp.src(specs), {name:'inject:specs', read: false}))
+        .pipe($.inject(gulp.src(config.temp + config.templateCache.file), {name:'inject:templates', read: false}))
+        .pipe(gulp.dest(config.client));
 });
 
 gulp.task('optimize', ['inject', 'test'], function() {
@@ -250,6 +279,8 @@ function notify(options) {
 }
 
 function startTests(singleRun, done) {
+    var child;
+    var fork = require('child_process').fork;
     var karma = require('karma').server;
     var excludeFiles = [];
     var serverSpecs = config.serverIntegrationSpecs;
@@ -260,10 +291,29 @@ function startTests(singleRun, done) {
         singleRun: !!singleRun // !! is a js trick to force singleRun value to a boolean
     };
 
+    if (args.startServers) {
+        log('Starting server');
+
+        var savedEnv = process.env;
+        savedEnv.NODE_ENV = 'dev';
+        savedEnv.PORT = 8888;
+        child = fork(config.nodeServer);
+    } else {
+        if (serverSpecs && serverSpecs.length) {
+            excludeFiles = serverSpecs;
+        }
+    }
+
     karma.start(options, karmaCompleted);
 
     function karmaCompleted(karmaResult) {
         log('Karma completed!');
+
+        if (child) {
+            log('Shutting down the child process.');
+            child.kill();
+        }
+
         if (karmaResult === 1) {
             done('karma: tests failed with code ' + karmaResult);
         } else {
@@ -272,7 +322,7 @@ function startTests(singleRun, done) {
     }
 }
 
-function serve(isDev) {
+function serve(isDev, isSpecRunner) {
     var nodeOptions = {
         script: config.nodeServer,
         delayTime: 1, // seconds
@@ -294,7 +344,7 @@ function serve(isDev) {
         })
         .on('start', function() {
             log('*** nodemon started');
-            startBrowserSync(isDev);
+            startBrowserSync(isDev, isSpecRunner);
         })
         .on('crash', function() {
             log('*** nodemon crashed: script crashed for some reason');
@@ -309,7 +359,7 @@ function changeEvent(event) {
     log('File ' + event.path.replace(srcPattern, '') + ' ' + event.type);
 }
 
-function startBrowserSync(isDev) {
+function startBrowserSync(isDev, isSpecRunner) {
     if (args.nosync || browserSync.active) {
         return;
     }
@@ -345,6 +395,10 @@ function startBrowserSync(isDev) {
         notify: true,
         reloadDelay: 1000 //ms
     };
+
+    if (isSpecRunner) {
+        options.startPath = config.specRunnerFile;
+    }
 
     browserSync(options);
 }

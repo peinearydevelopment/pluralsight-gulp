@@ -4,6 +4,7 @@ module.exports = function() {
     var report = './report/';
     var root = './';
     var server = './src/server/';
+    var specRunnerFile = 'specs.html';
     var temp = './.tmp/';
     var wiredep = require('wiredep');
     var bowerFiles = wiredep({devDependencies: true})['js'];
@@ -62,6 +63,17 @@ module.exports = function() {
         packages : [
             './package.json',
             './bower.json'
+        ],
+
+        /*our HTML spec runner*/
+        specRunner: client + specRunnerFile,
+        specRunnerFile: specRunnerFile,
+        specs: [clientApp + '**/*.spec.js'],
+        testlibraries: [
+            'node_modules/mocha/mocha.js',
+            'node_modules/chai/chai.js',
+            'node_modules/mocha-clean/index.js',
+            'node_modules/sinon-chai/sinon-chai.js',
         ],
 
         /*Karma and testing settings*/
