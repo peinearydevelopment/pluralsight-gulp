@@ -426,3 +426,14 @@ function log(message) {
         $.util.log($.util.colors.green(message));
     }
 }
+
+//////////////////////////////////////////////////////////////////
+/************************* GULP 4 NOTES *************************/
+// gulp.task('build',
+//     gulp.series(
+//         gulp.parallel('vet', 'test'), // vet/test run in parallel
+//         // wiredep/styles/templatecache waits until vet/test are done before it gets run
+//         gulp.paralled('wiredep', 'styles', 'templatecache'),
+//         optimize
+//     )
+// );
